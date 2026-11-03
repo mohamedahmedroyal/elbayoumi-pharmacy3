@@ -6,7 +6,7 @@ import { migrations } from './core/db/migrations';
 export default function App() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState('جاري التهيئة...');
-  const [stats, setStats] = useState<{ version: number; tables: number } | null>(null);
+  const [stats, setStats] = useState<{ version: number; tables: string[] } | null>(null);
   const [testOut, setTestOut] = useState<{ kind: 'ok' | 'err' | ''; text: string }>({ kind: '', text: '' });
   const initRef = useRef(false);
 
@@ -18,8 +18,13 @@ export default function App() {
         setMessage('جاري تشغيل الترحيلات...');
         const r = await new MigrationRunner(db, migrations).run();
         const tables = await db.query<{ name: string }>(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`);
-        setStats({ version: r.to, tables: tables.length }); setMessage(`تم التهيئة — قاعدة البيانات v${r.to}`); setStatus('ready');
-      } catch (e) { setMessage(`خطأ: ${(e as Error).message}`); setStatus('error'); }
+        setStats({ version: r.to, tables: tables.map(t => t.name) }); 
+        setMessage(`تم التهيئة — قاعدة البيانات v${r.to}`); 
+        setStatus('ready');
+      } catch (e) { 
+        setMessage(`خطأ: ${(e as Error).message}`); 
+        setStatus('error'); 
+      }
     })();
   }, []);
 
@@ -32,20 +37,28 @@ export default function App() {
       if (!row) throw new Error('لم يُعثر على السجل');
       const count = await db.queryOne<{ c: number }>(`SELECT COUNT(*) AS c FROM categories`);
       setTestOut({ kind: 'ok', text: `نجح الإدراج والقراءة\nالمعرّف: ${row.id}\nالاسم: ${row.name}\nإجمالي التصنيفات: ${count?.c ?? '?'}` });
-    } catch (e) { setTestOut({ kind: 'err', text: `${(e as Error).message}` }); }
+    } catch (e) { 
+      setTestOut({ kind: 'err', text: `${(e as Error).message}` }); 
+    }
   };
 
   return (
     <div className="app-shell">
       <div className="card">
         <div className="brand">البيومي فارمسي</div>
-        <div className="subtitle">نظام إدارة الصيدليات البيطرية — المرحلة 1</div>
+        <div className="subtitle">نظام إدارة الصيدليات البيطرية — المرحلة 2</div>
         {status === 'loading' && (<><div className="spinner" /><div className="status">{message}</div></>)}
         {status === 'error' && <div className="result error">{message}</div>}
         {status === 'ready' && stats && (
           <>
             <div className="status">{message}</div>
-            <div className="status" style={{ marginTop: 10 }}><span className="badge">DB v{stats.version}</span><span className="badge">{stats.tables} جداول</span></div>
+            <div className="status" style={{ marginTop: 10 }}>
+              <span className="badge">DB v{stats.version}</span>
+              <span className="badge">{stats.tables.length} جداول</span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#718096', marginTop: '10px', direction: 'ltr' }}>
+              {stats.tables.join(', ')}
+            </div>
             <button className="btn" onClick={runDbTest}>اختبار قراءة/كتابة قاعدة البيانات</button>
             {testOut.text && (<div className={`result ${testOut.kind === 'ok' ? 'success' : testOut.kind === 'err' ? 'error' : ''}`}>{testOut.text}</div>)}
           </>
