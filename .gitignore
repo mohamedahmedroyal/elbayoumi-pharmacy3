@@ -1,0 +1,17 @@
+node_modules/
+dist/
+*.log
+.env
+android/app/src/main/assets/public/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.keystore
+*.jks
+*.p12
+*.db
+*.db-shm
+*.db-wal
+coverage/
+.DS_Store
