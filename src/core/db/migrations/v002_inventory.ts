@@ -4,8 +4,6 @@ export const v002: Migration = {
   version: 2,
   name: 'inventory_and_contacts',
   up: async (db) => {
-    const now = new Date().toISOString();
-
     // 1. العملاء
     await db.execute(`
       CREATE TABLE customers (
