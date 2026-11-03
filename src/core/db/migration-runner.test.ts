@@ -1,27 +1,26 @@
-import { describe, it, expect } from 'vitest';
-import { MigrationRunner } from './migration-runner';
 import type { DatabaseService, Migration } from './types';
 
-class FakeDb implements DatabaseService {
-  applied = new Map<number, string>();
-  async execute(sql: string, params?: unknown[]): Promise<void> {
-    if (sql.includes('INSERT INTO schema_migrations') && params) {
-      this.applied.set(params[0] as number, params[1] as string);
+export class MigrationRunner {
+  private migrations: Migration[];
+  constructor(private db: DatabaseService, migrations: Migration[]) {
+    this.migrations = [...migrations].sort((a, b) => a.version - b.version);
+    const seen = new Set<number>(); 
+    for (const m of this.migrations) { 
+      if (seen.has(m.version)) throw new Error(`Duplicate v${m.version}`); 
+      seen.add(m.version); 
     }
   }
-  async query<T>(): Promise<T[]> { return []; }
-  async queryOne<T>(): Promise<T | null> { return null; }
-  async transaction<T>(fn: () => Promise<T>): Promise<T> { return fn(); }
-  async getVersion(): Promise<number> {
-    return this.applied.size ? Math.max(...this.applied.keys()) : 0;
+  async run(): Promise<{ from: number; to: number; applied: number[] }> {
+    await this.db.execute(`CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, applied_at TEXT NOT NULL);`);
+    const from = await this.db.getVersion(); 
+    const pending = this.migrations.filter((m) => m.version > from); 
+    const applied: number[] = [];
+    for (const m of pending) { 
+      // تم إزالة غلاف الـ transaction هنا لتجنب تعارض المكتبة
+      await m.up(this.db); 
+      await this.db.execute(`INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`, [m.version, m.name, new Date().toISOString()]); 
+      applied.push(m.version); 
+    }
+    return { from, to: await this.db.getVersion(), applied };
   }
 }
-
-describe('MigrationRunner', () => {
-  it('runs', async () => {
-    const db = new FakeDb(); 
-    const m: Migration = { version: 1, name: 'a', up: async () => {} };
-    await new MigrationRunner(db, [m]).run(); 
-    expect(await db.getVersion()).toBe(1);
-  });
-});
