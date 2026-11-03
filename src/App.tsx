@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import ItemsPage from './features/items/ItemsPage';
+import BatchesPage from './features/batches/BatchesPage';
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<'dashboard' | 'items'>('items');
+  const [currentTab, setCurrentTab] = useState<'dashboard' | 'items' | 'batches'>('items');
 
   return (
     <div className="app-container">
@@ -15,6 +16,7 @@ export default function App() {
         )}
         
         {currentTab === 'items' && <ItemsPage />}
+        {currentTab === 'batches' && <BatchesPage />}
       </div>
 
       <div className="bottom-nav">
@@ -25,6 +27,10 @@ export default function App() {
         <div className={`nav-item ${currentTab === 'items' ? 'active' : ''}`} onClick={() => setCurrentTab('items')}>
           <span className="nav-icon">📦</span>
           <span>الأصناف</span>
+        </div>
+        <div className={`nav-item ${currentTab === 'batches' ? 'active' : ''}`} onClick={() => setCurrentTab('batches')}>
+          <span className="nav-icon">🏷️</span>
+          <span>التشغيلات</span>
         </div>
       </div>
     </div>
