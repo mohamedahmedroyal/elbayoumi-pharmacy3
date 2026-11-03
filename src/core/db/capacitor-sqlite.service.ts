@@ -20,8 +20,7 @@ export class CapacitorSqliteService implements DatabaseService {
       else this.db = await this.sqlite.createConnection(DB_NAME, false, 'no-encryption', DB_VERSION, false);
       if (!(await this.db.isDBOpen()).result) await this.db.open();
       
-      // إصلاح: استخدام query بدلاً من execute لتفعيل WAL
-      await this.db.query('PRAGMA journal_mode = WAL;');
+      // تم إزالة أمر WAL لتجنب مشكلة الـ Transaction
       await this.db.execute('PRAGMA foreign_keys = ON;');
     })();
     try { await this.opening; } finally { this.opening = null; }
@@ -53,13 +52,24 @@ export class CapacitorSqliteService implements DatabaseService {
     const db = this.ensure();
     if (this.inTx) return fn();
     this.inTx = true;
-    await db.beginTransaction();
+    
+    let began = false;
+    try {
+      await db.beginTransaction();
+      began = true;
+    } catch (e: any) {
+      if (!e.message?.includes('already in transaction')) {
+        this.inTx = false;
+        throw e;
+      }
+    }
+
     try {
       const out = await fn();
-      await db.commitTransaction();
+      if (began) await db.commitTransaction();
       return out;
     } catch (e) {
-      await db.rollbackTransaction();
+      if (began) await db.rollbackTransaction();
       throw e;
     } finally {
       this.inTx = false;
