@@ -8,7 +8,6 @@ export class CapacitorSqliteService implements DatabaseService {
   private sqlite = new SQLiteConnection(CapacitorSQLite);
   private db: SQLiteDBConnection | null = null;
   private opening: Promise<void> | null = null;
-  private inTx = false;
 
   async open(): Promise<void> {
     if (this.db) return;
@@ -19,9 +18,6 @@ export class CapacitorSqliteService implements DatabaseService {
       if (consist.result && isConn) this.db = await this.sqlite.retrieveConnection(DB_NAME, false);
       else this.db = await this.sqlite.createConnection(DB_NAME, false, 'no-encryption', DB_VERSION, false);
       if (!(await this.db.isDBOpen()).result) await this.db.open();
-      
-      // تم إزالة أمر WAL لتجنب مشكلة الـ Transaction
-      await this.db.execute('PRAGMA foreign_keys = ON;');
     })();
     try { await this.opening; } finally { this.opening = null; }
   }
@@ -33,8 +29,11 @@ export class CapacitorSqliteService implements DatabaseService {
 
   async execute(sql: string, params: unknown[] = []): Promise<void> {
     const db = this.ensure();
-    if (params.length > 0) await db.run(sql, params as never[]);
-    else await db.execute(sql);
+    if (params.length > 0) {
+      await db.run(sql, params as never[]);
+    } else {
+      await db.execute(sql); 
+    }
   }
 
   async query<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
@@ -49,31 +48,7 @@ export class CapacitorSqliteService implements DatabaseService {
   }
 
   async transaction<T>(fn: () => Promise<T>): Promise<T> {
-    const db = this.ensure();
-    if (this.inTx) return fn();
-    this.inTx = true;
-    
-    let began = false;
-    try {
-      await db.beginTransaction();
-      began = true;
-    } catch (e: any) {
-      if (!e.message?.includes('already in transaction')) {
-        this.inTx = false;
-        throw e;
-      }
-    }
-
-    try {
-      const out = await fn();
-      if (began) await db.commitTransaction();
-      return out;
-    } catch (e) {
-      if (began) await db.rollbackTransaction();
-      throw e;
-    } finally {
-      this.inTx = false;
-    }
+    return fn(); 
   }
 
   async getVersion(): Promise<number> {
